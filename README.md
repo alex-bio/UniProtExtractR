@@ -46,4 +46,11 @@ Check the “empty” cells in the uploaded file. If using the Shiny app, consid
 ### Edge cases
 There were quite a few edge cases of UniProtKB syntax that are all addressed in this release, but if more are encountered, please let me know!
 
+## Install
+```
+devtools::install_github("alex-bio/UniProtExtractR")
+library(UniProtExtractR)
+UniProtExtractR::uniprotextract(my.uniprot.df, map.up=NULL, write.local=FALSE)
+```
+
 Last edited Alex Panov 23-06-28.
