@@ -3,7 +3,7 @@ Type: Package
 Title: uniprotextract
 Version: 1.0.0
 Author: Alex Panov
-Maintainer: Alex Panov
-Description: See ?uniprotextract
-License: See LICENSE file at repo root
+Maintainer: Alex Panov <alex@hms.harvard.edu>
+Description: R package for extracting desired information from syntactically structured UniProtKB character strings
+License: file LICENSE
 Encoding: UTF-8
