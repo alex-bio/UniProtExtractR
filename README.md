@@ -25,11 +25,37 @@ Importantly, the values within “Exact” and “StartsWith” columns must be 
 Default is `FALSE`, and the uniprotextract function will return the modified dataframe. If `write.local = TRUE`, then no dataframe is returned but instead written to the working directory as a .CSV file. 
 
 ## Outputs
-Both the app and the R package return a dataframe containing the originally uploaded UniProtKB file with additional modified or “extracted” columns. Both the original and modified columns will be present in the resulting file for user comparison. For the categories DNA binding, Transmembrane, and Signal peptide, a binary category is created indicating whether a protein entry has that feature or not. Additionally, for DNA binding and Transmembrane categories specifically, UniProtExtractR also adds a numeric column counting the number of domains present per entry. For Pathway, the R package removes trailing details for each entry and changes the terms “biosynthesis”, “degradation”, and “metabolism” to “modification” for increased coverage at the expense of specificity. For Protein families and Domain [FT], trailing details for each entry are removed. For Involvement in disease, the name of the disease is extracted for each entry and additional details are removed. For Motif, the motif is extracted. If a protein entry contains multiple values for Pathway, Protein families, Domain [FT], Motif, Involvement in disease, and Subcellular location [CC], then only the first listed element is extracted. Any isoform specific terms are removed for any category (a relatively small amount for all tested datasets during app and package development). (A user may edit some of these options by redefining the `uniprotextract` function locally; there are a few documented regions in the function that allow for expansion to multiple terms per entry if desired.)
+Both the app and the R package return a dataframe containing the originally uploaded UniProtKB file with additional modified or “extracted” columns. Both the original and modified columns will be present in the resulting file for user comparison. For the categories DNA binding, Transmembrane, and Signal peptide, a binary category is created indicating whether a protein entry has that feature or not. Additionally, for DNA binding and Transmembrane categories specifically, UniProtExtractR also adds a numeric column counting the number of domains present per entry. For Pathway, the R package removes trailing details for each entry and changes the terms “biosynthesis”, “degradation”, and “metabolism” to “modification” for increased coverage at the expense of specificity. For Protein families and Domain [FT], trailing details for each entry are removed. For Involvement in disease, the name of the disease is extracted for each entry and additional details are removed. For Motif, the motif is extracted. For Subcellular location [CC], a column containing the extracted location is added, and if a mapping file is present, an additional column is adding containing the mapped term. The original Subcellular location [CC] entry, extracted, and mapped columns will allow for manual inspection. If a protein entry contains multiple values for Pathway, Protein families, Domain [FT], Motif, Involvement in disease, and Subcellular location [CC], then only the first listed element is extracted. Any isoform specific terms are removed for any category (a relatively small amount for all tested datasets during app and package development). (A user may edit some of these options by redefining the `uniprotextract` function locally; there are a few documented regions in the function that allow for expansion to multiple terms per entry if desired.)
 
 If using the Shiny app, then the outputs are a frequency table and a modified dataframe that can be downloaded as a .CSV file. The frequency table will show how many times unique values appear for each column of the modified UniProtKB query file. This may be useful for seeing overall trends of the input UniProtKB queries (How many proteins have 7 transmembrane domains? How many proteins mitochondrial? etc.) and especially useful for refining the organelle mapping file for Subcellular location [CC] (How many proteins have I assigned to each “New” category?). 
 
 If using `uniprotextract()` from the R package, it will return a modified or “extracted” version of the original UniProtKB query dataframe. Please see `?uniprotextract` for reproducible short examples.
+
+If the following categories are present (and not empty), then new columns (bulleted) will appear:
+1. DNA binding
+- DNA.binding_binary
+- DNA.binding_count
+2. Pathway
+- Pathway.edit
+3. Transmembrane
+- Transmembrane_binary
+- Transmembrane_count
+4. Signal peptide
+- Signal.peptide_binary
+5. Protein families
+- Protein.families.edit
+6. Domain [FT]
+- Domain..FT.edit
+7. Motif
+- Motif.edit
+8. Involvement in disease
+- Involvement.in.disease.edit
+- Involvement.in.disease_count
+9. Subcellular location [CC]
+- Subcellular.location..CC.edit
+- Subcellular.location..CC.map.edit (if mapping file present)
+
+Note that R converts spaces in column names to periods in the output.
 
 
 ## Troubleshooting
