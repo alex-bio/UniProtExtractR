@@ -1,0 +1,24 @@
+New	Exact	StartsWith
+Cell membrane Lipid anchor	"Cell membrane Lipidanchor,Membrane Lipidanchor"	"Cell membrane Lipidanchor,Membrane Lipidanchor"
+Cell membrane	"Podoplanin Membrane,Zymogen granule membrane,Lateral cell membrane,Cell membrane"	"Membrane,Transmembrane protein,Virion,Basolateral cell membrane,Zona,Processed zona,Basal cell membrane,Apical cell membrane,Autolysosome,Interleukin,Prolyl endopeptidase FAP Cell,Vacuole,Vesicle,Cytolytic,Preautophagosomal,Cell membrane"
+Cell junction		Cell junction
+Cell projection		"Cell projection,Cell surface"
+Cytoplasm		"Cytoplasm,Ubiquitin Cytoplasm,Midbody,Dynein axonemal particle,Perikaryon"
+Early endosome	"Early endosome membrane,Endomembrane system"	"Early endosome,Endomembrane system"
+ER		"Endoplasmic reticulum,Rough endoplasmic,Sarcoplasmic,Myelin,Sterol regulatory element,Sonic hedgehog,Smooth endoplasmic"
+Endosome		"Endosome,Recycling endosome,Melanosome,Melanosome membrane"
+Golgi-trans		Golgi apparatus transGolgi
+Golgi-cis		Golgi apparatus cisGolgi
+Golgi		Golgi 
+Late endosome		Late endosome
+Lipid droplet		Lipid droplet
+Lysosome		Lysosome
+Microsome		Microsome
+Mitochondrion		Mitochondrion
+Nucleus		"Chromosome,Nucleus"
+Peroxisome		Peroxisome
+Photoreceptor		Photoreceptor
+Postsynaptic cell membrane		Postsynap
+Presynapse		Presynap
+Secreted	Secreted	"Secreted,Extracellular"
+Synapse		Synap
