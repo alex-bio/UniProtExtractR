@@ -69,8 +69,8 @@ If a mapping file is used and all terms map to one particular value of the “Ne
 ### Empty cells/values in original file are being “extracted” as incorrect non-empty cells/values
 Check the “empty” cells in the uploaded file. If using the Shiny app, consider that some cells may look empty, but really contain a single or multiple spaces. If there are cells that are “NA” or “NULL”, they will be appropriately assigned as such if the text in those cells matches one of the following: “”, “NA”, “NULL”, “null” or “NaN”. If using the R package, similarly check empty or NA values; `NA`, `NULL`, `null` or `NaN` and empty cells are all converted to `NA`. Of note, UniProtKB queries contain many types of quotation marks; to be considered if using `read.table`.
 
-### Edge cases
-There were quite a few edge cases of UniProtKB syntax that are all addressed in this release, but if more are encountered, please let me know!
+### Other cases
+There were quite a few other cases of UniProtKB syntax that are all addressed in this release, but if more are encountered, please let me know!
 
 ## Install
 ```
