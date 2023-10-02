@@ -79,4 +79,4 @@ library(UniProtExtractR)
 UniProtExtractR::uniprotextract(my.uniprot.df, map.up=NULL, write.local=FALSE)
 ```
 
-Last edited Alex Panov 23-06-28.
+Last edited Alex Panov 23-10-02.
