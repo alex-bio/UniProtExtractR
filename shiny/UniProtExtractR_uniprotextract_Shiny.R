@@ -1,6 +1,6 @@
-## UniProtExtractR. AP 23-06-21.
+## UniProtExtractR. AP 23-10-02.
 #### Install necessary packages ####
-list.of.packages <- c("stringr", "stringi", "tibble", "shiny", "DT")
+list.of.packages <- c("stringr", "stringi", "tibble", "shiny", "DT", "BiocManager", "UniProt.ws", "bslib")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 library(stringr)
@@ -8,25 +8,47 @@ library(stringi)
 library(tibble)
 library(shiny)
 library(DT)
+library(BiocManager)
+library(UniProt.ws)
+library(bslib)
 
 ####Start of Shiny App. ####
 ui <- shinyUI(fluidPage(
-  titlePanel("UniProtExtractR"),
+  theme = bs_theme(bootswatch = "cerulean"),
+  titlePanel("UniProtExtractR: extract information from UniProtKB"),
   sidebarLayout(
     sidebarPanel(
-      h4("A clickable app to extract information from UniProtKB downloads."),
-      helpText("Upload the UniProtKB queries immediately below as a .TSV file. It is recommended to export from UniProtKB as a .TSV file and upload directly into this app without opening the file in another application, such as Excel (see manual for details)."),
+      h3("Step 1: Query UniProtKB"),
+      ## choices here are c(human, mouse, yeast, plant)
+      helpText("Query options: (1) choose/input Taxon ID below for whole proteome, (2) list custom UniProtKB entries, or (3) upload a .TSV query downloaded from UniProtKB website. Common Taxon IDs: H. sapiens (9606), M. musculus (10090), S. cerevisiae (559292), A. thaliana (3702)"),
+      hr(),
+      h6("Option 1: whole proteome"),
+      ## the placeholder and onInitialize arguments in options make the selectizeInput have no default value upon running the app
+      selectizeInput("taxon_input", "Organism taxon ID", choices = c(9606, 10090,559292 ,3702), options=list(create=TRUE, placeholder = 'Type or select taxon ID', onInitialize = I('function() { this.setValue(""); }'))),
+      selectInput("review_input","UniProtKB Entry type", c("reviewed", "not reviewed", "both reviewed and not reviewed")),
+      h6("Option 2: custom UniProtKB entries"),
+      textAreaInput("individual_input", "Input custom UniProtKB entries (e.g. Q16864) separated by line" ),
+      helpText("If query is successful, then a \"Run ExtractR\" button will appear below Step 3."),
+      actionButton("query_API", label="Query UniProtKB"),
+      hr(),
+      h6("Option 3: upload a .TSV query downloaded from UniProtKB website"),
+      helpText("It is recommended to export from UniProtKB as a .TSV file and upload directly into this app without opening the file in another application, such as Excel (see manual for details)."),
       fileInput("file1", "Choose TSV File", accept=c(".tsv", ".txt")),
-      helpText("Optional: upload your mapping file for Subcellular location. Important: values within the Exact and StartsWith columns MUST be separated by a single comma, not a comma and space (this does not mean the file should be .CSV; just the values within each cell should be separated by commas). Exact values will be prioritized over StartsWith matches if there are multiple mappings. See manual for more details."),
+      h3("Step 2 (optional): Include organelle mapping file"),
+      helpText("Optional: upload your mapping file for Subcellular location. Important: values within the Exact and StartsWith columns MUST be separated by a single comma, not a comma and space. Exact values will be prioritized over StartsWith matches if there are multiple mappings."),
       fileInput("file2", "Optional: Choose TSV File", accept=c(".tsv", ".txt")),
       hr(),
-      helpText("After running, a table and download button will appear. The table is a frequency table that shows distinct values for each column, including empty values. This may be useful especially for mapping Subcellular locations."),
+      h3("Step 3: Run ExtractR"),
+      helpText("A \"Run ExtractR\" button will appear below this text upon successful UniProtKB query or upload from Step 1."),
+      helpText("After running, a table and download button will appear. The table is a frequency table that shows distinct values for each column, including empty values. This may be useful especially for mapping subcellular locations."),
       hr(),
       conditionalPanel("output.files_ready",
                        actionButton("run_extract",label="Run ExtractR")),
       hr()),
     mainPanel(
+      uiOutput("helpme_text"),
       uiOutput("downloader"),
+      uiOutput("helpme_text2"),
       uiOutput("category_select"),
       uiOutput("category_table")
     )
@@ -37,24 +59,89 @@ ui <- shinyUI(fluidPage(
 server <- function(input,output,session){
   ## 5 GB max upload file
   options(shiny.usecairo=T, shiny.maxRequestSize=5000*1024^2)
+  API.df <- eventReactive(input$query_API, {
+    withProgress(message='Querying UniProtKB',
+                 detail='beep beep boop beep...',value=0,{
+    taxon.id <- input$taxon_input
+    ## wholeProteome variable is the query for queryUniProt() argument
+    wholeProteome <- NULL
+    wholeProteome <- if(input$taxon_input!="") {
+      ## create wholeProteome if taxon_input exists
+      if (input$review_input=="reviewed") {
+        c(paste0("organism_id:", taxon.id), paste0("reviewed:true"))
+      } else {
+        if (input$review_input=="not reviewed") {
+          c(paste0("organism_id:", taxon.id), paste0("reviewed:false"))
+          ## and then the rest, both reviewed and not reviewed, so leave reviewed blank
+        } else {
+          c(paste0("organism_id:", taxon.id))
+        }
+      }
+    } 
+    else {
+      if(input$individual_input!="") {
+        paste0(
+          ## paste accession in front to ensure it's accession/entry 
+          "accession:",
+          unlist(strsplit(input$individual_input, split="\n"))
+        )
+      }
+    }
+    incProgress(1/3)
+    ## now craft the actual UniProtKB API query
+    ## if taxon_input exists, use that for the query for wholeProteome. This is first in the ifelse statement, so will be default.
+    query.df <-  if (!is.null(wholeProteome)) {
+      queryUniProt(
+      ## query either accession #s in quotes, like "A0JNW5", etc., or whole coverage, like "organism_id:9606", "reviewed:true". This is basically a search bar
+      query = wholeProteome,
+      ## which fields to return?
+      fields = c("accession", "reviewed", "id", "gene_names", "organism_name", "length", "ft_dna_bind", "cc_pathway", "ft_transmem", "ft_signal", "protein_families", "ft_domain", "ft_motif", "cc_disease", "cc_subcellular_location"),
+      pageSize=500L,
+      ## collapse tells you the operator for query components. default is " OR "
+      collapse = if(input$taxon_input!=""){
+      " AND "
+      } else {
+        if(input$individual_input!="") {
+          " OR "
+        }
+      }
+    )
+    }
+    query.df
+    incProgress(1)
+    ## This asks if Taxon ID is valid. If there are no rows in query.df, then it will return NULL and the "Extract" button will not appear. 
+    if (nrow(query.df) > 0) {
+    query.df
+    } else {
+      NULL
+    }
+    ##close brackets for withProgress
+      })
+    ##close brackets for eventReactive
+  })
   output$files_ready <- reactive({
-    return(!is.null(input$file1))
+    ## shows up when either API.df() is not null (when querying API worked), or when user inputs a file.
+    return(!is.null(input$file1) | !is.null(API.df()))
   })
   outputOptions(output,"files_ready", suspendWhenHidden=FALSE)
   extracted.df <- NULL
   extracted.df <- eventReactive(input$run_extract, {
     withProgress(message='Extracting',
                  detail='May take a few minutes...',value=0,{
-                   if (is.null(input$file1))
+                   if (is.null(input$file1) & is.null(API.df()))
                      return(NULL)
                    # my.uniprot.df <- read.csv(input$file1$datapath, header=TRUE, na.strings=c("", "NA", "NaN", "NULL", "null"))
-                   my.uniprot.df <- read.table(input$file1$datapath, sep = '\t', header = TRUE, na.strings=c("", "NA", "NaN", "NULL", "null"), fill = TRUE, quote = "")
+                   ## the dataframe to be used will the API.df() queried dataframe, unless it's null. If it's null, then it will be input$file1.
+                   my.uniprot.df <- if(!is.null(API.df())) {
+                      API.df() 
+                     } else { read.table(input$file1$datapath, sep = '\t', header = TRUE, na.strings=c("", "NA", "NaN", "NULL", "null"), fill = TRUE, quote = "")
+                     }
                    if (!is.null(input$file2)) {
                      # map.up<- read.csv(input$file2$datapath, header=TRUE, na.strings=c("", "NA", "NaN", "NULL", "null")) 
                      map.up <- read.table(input$file2$datapath, sep = '\t', header=TRUE, na.strings=c("", "NA", "NaN", "NULL", "null"), fill = TRUE)
-                     } else {
-                       map.up <- NULL
-                     }
+                   } else {
+                     map.up <- NULL
+                   }
                    incProgress(1/3)
                    ## start of extracting steps
                    #### UniProt details; Read data ####
@@ -83,7 +170,8 @@ server <- function(input,output,session){
                      up <- add_column(up, Involvement.in.disease.edit = ifelse(up$disease_count1 == up$disease_count2, NA, up$Involvement.in.disease ), .after = "Involvement.in.disease")
                      # sum(!is.na(up$Involvement.in.disease))
                      ## have removed 387 values where all disease listings are Notes. 
-                     
+                     ## sometimes, all values might be NA at this point. If had all "DISEASE: Note=". Only run the rest of the code below if that is not the case.
+                     if(sum(is.na(up$Involvement.in.disease.edit))!=nrow(up)) {
                      # sum(startsWith(up$Involvement.in.disease.edit, "DISEASE: Note="), na.rm=T)
                      ## how many start with "DISEASE: Note="?
                      ## while there are some entries that start with "DISEASE: Note=", remove "DISEASE: Note= ... DISEASE: " and replace with "DISEASE: " until all Disease entries do not start with "DISEASE: Note= ". Basically bringing the disease name to the front of the string and eliminating the Note= repeatedly until so. 
@@ -141,10 +229,12 @@ server <- function(input,output,session){
                      ## case 3: believe it or not!
                      up$Involvement.in.disease.edit <- gsub(" [[:digit:]][[:alpha:]][[:digit:]][[:alpha:]]$| [[:digit:]][[:alpha:]][[:alpha:]]$", "", up$Involvement.in.disease.edit)
                      ## finally, remove the disease_count1 and 2 columns, have served their purpose
-                     up$disease_count1 <- NULL
-                     up$disease_count2 <- NULL
                      ## also change any final disease_count == 0 values to NA since there was only a Note= originally in the disease category.
                      up$Involvement.in.disease_count[up$Involvement.in.disease_count== 0] <- NA
+                     }
+                     up$disease_count1 <- NULL
+                     up$disease_count2 <- NULL
+                     
                      ## BAM!
                      # View(table(up$Involvement.in.disease))
                      summary.changes[1] <- "Involvement.in.disease"
@@ -298,7 +388,11 @@ server <- function(input,output,session){
                      ## ~150 proteins have 2 motifs of 2369 total entries, 6%. ~50 proteins have 3, 25 have 4...negligible after 5 really, though looks like max is 20? wow
                      transient.df <- data.frame(a = rep(0, nrow(up)))
                      ## don't need a loop if just taking first 
+                     ## Apparently, UniProt .TSV export files have quotes around Motifs and Domains. If you query the API directly, there are no quotes. This if statement should take care of that.
                      transient.df$Motif.edit <- str_match(up$Motif, "note=\"(.*?)\"")[,2]
+                     if(sum(is.na(transient.df$Motif.edit))== nrow(transient.df)) {
+                       transient.df$Motif.edit <- str_match(up$Motif, "note=(.*?);")[,2]
+                     }
                      ## eliminate anything after a semicolon
                      transient.df$Motif.edit <- gsub(";.*", "", transient.df$Motif.edit)
                      ## str_trim eliminates spaces at start and ends of strings
@@ -342,8 +436,12 @@ server <- function(input,output,session){
                      # summary(str_count(up$Domain..FT., "note="))
                      ## holy smokes, a protein has 285 annotated domains??? lol
                      transient.df <- data.frame(a = rep(0, nrow(up)))
-                     ## don't need a loop if just taking first 
+                     ## don't need a loop if just taking first  
+                     ## Apparently, UniProt .TSV export files have quotes around Motifs and Domains. If you query the API directly, there are no quotes. This if statement should take care of that.
                      transient.df$Domain..FT.edit <- str_match(up$Domain..FT., "note=\"(.*?)\"")[,2]
+                     if(sum(is.na(transient.df$Domain..FT.edit))== nrow(transient.df)) {
+                       transient.df$Domain..FT.edit <- str_match(up$Motif, "note=(.*?);")[,2]
+                     }
                      ## floating integers strike again!!!!
                      # View(table(transient.df$Domain..FT.edit))
                      ## case 1. Floating integers. Srsly.
@@ -533,29 +631,29 @@ server <- function(input,output,session){
                      ## sorting this table by Var1 is useful for seeing which UniProt term is more prominent for each organelle 
                      ## if a map.up dataframe is provided, then carry out the mapping function. If not, then extracted Subcellular.location terms will remain the first extracted term from above.
                      if (!is.null(map.up)) {
-                     map.up <- map.up
-                     ## make these regex statements for Exact matches
-                     map.up$Exact <- gsub(",","$|^",map.up$Exact)
-                     stri_sub(map.up$Exact, 1, 0) <- "^"
-                     stri_sub(map.up$Exact, (nchar(map.up$Exact)+1), (nchar(map.up$Exact)+2)) <- "$"
-                     ## make these StartsWith regex statements
-                     map.up$StartsWith <- gsub(",", ".*|^",map.up$StartsWith)
-                     stri_sub(map.up$StartsWith, 1, 0) <- "^"
-                     stri_sub(map.up$StartsWith, (nchar(map.up$StartsWith)+1), (nchar(map.up$StartsWith)+2)) <- ".*"
-                     ## this will help with later regex statements
-                     map.up[is.na(map.up)] <- c("ImpossibleREGEX0000")
-                     ## now replace all the Exact matches
-                     up$Subcellular.location..CC.map.edit1 <- stri_replace_all_regex(up[,c("Subcellular.location_short")], map.up[,c("Exact")], map.up[,c("New")], vectorize_all = FALSE)
-                     ## now replace all the StartsWith matches
-                     up$Subcellular.location..CC.map.edit2 <- stri_replace_all_regex(up[,c("Subcellular.location..CC.map.edit1")], map.up[,c("StartsWith")], map.up[,c("New")], vectorize_all = FALSE)
-                     ## Want to make sure Exact matches are prioritized before being potentially wiped out by StartsWith matches. Assuming the value would change between original (_short) and Exact changes (edit1), then keep the changed version, else keep the StartsWith (edit2)
-                     # up$Subcellular.location..CC.map.edit3 <- ifelse(up$Subcellular.location_short==up$Subcellular.location..CC.map.edit1, up$Subcellular.location..CC.map.edit2, up$Subcellular.location..CC.map.edit1)
-                     up <- add_column(up, Subcellular.location..CC.map.edit3 = ifelse(up$Subcellular.location_short==up$Subcellular.location..CC.map.edit1, up$Subcellular.location..CC.map.edit2, up$Subcellular.location..CC.map.edit1), .after="Subcellular.location_short")
-                     ## after Subcellular.location..CC.map.edit3 is created, drop the other two columns
-                     up[,c("Subcellular.location..CC.map.edit1", "Subcellular.location..CC.map.edit2")] <- NULL
-                     ## and rename the existing column
-                     colnames(up)[colnames(up)=="Subcellular.location..CC.map.edit3"] <- "Subcellular.location..CC.map.edit"
-                     ## end of if (!is.null(map.up)) section
+                       map.up <- map.up
+                       ## make these regex statements for Exact matches
+                       map.up$Exact <- gsub(",","$|^",map.up$Exact)
+                       stri_sub(map.up$Exact, 1, 0) <- "^"
+                       stri_sub(map.up$Exact, (nchar(map.up$Exact)+1), (nchar(map.up$Exact)+2)) <- "$"
+                       ## make these StartsWith regex statements
+                       map.up$StartsWith <- gsub(",", ".*|^",map.up$StartsWith)
+                       stri_sub(map.up$StartsWith, 1, 0) <- "^"
+                       stri_sub(map.up$StartsWith, (nchar(map.up$StartsWith)+1), (nchar(map.up$StartsWith)+2)) <- ".*"
+                       ## this will help with later regex statements
+                       map.up[is.na(map.up)] <- c("ImpossibleREGEX0000")
+                       ## now replace all the Exact matches
+                       up$Subcellular.location..CC.map.edit1 <- stri_replace_all_regex(up[,c("Subcellular.location_short")], map.up[,c("Exact")], map.up[,c("New")], vectorize_all = FALSE)
+                       ## now replace all the StartsWith matches
+                       up$Subcellular.location..CC.map.edit2 <- stri_replace_all_regex(up[,c("Subcellular.location..CC.map.edit1")], map.up[,c("StartsWith")], map.up[,c("New")], vectorize_all = FALSE)
+                       ## Want to make sure Exact matches are prioritized before being potentially wiped out by StartsWith matches. Assuming the value would change between original (_short) and Exact changes (edit1), then keep the changed version, else keep the StartsWith (edit2)
+                       # up$Subcellular.location..CC.map.edit3 <- ifelse(up$Subcellular.location_short==up$Subcellular.location..CC.map.edit1, up$Subcellular.location..CC.map.edit2, up$Subcellular.location..CC.map.edit1)
+                       up <- add_column(up, Subcellular.location..CC.map.edit3 = ifelse(up$Subcellular.location_short==up$Subcellular.location..CC.map.edit1, up$Subcellular.location..CC.map.edit2, up$Subcellular.location..CC.map.edit1), .after="Subcellular.location_short")
+                       ## after Subcellular.location..CC.map.edit3 is created, drop the other two columns
+                       up[,c("Subcellular.location..CC.map.edit1", "Subcellular.location..CC.map.edit2")] <- NULL
+                       ## and rename the existing column
+                       colnames(up)[colnames(up)=="Subcellular.location..CC.map.edit3"] <- "Subcellular.location..CC.map.edit"
+                       ## end of if (!is.null(map.up)) section
                      }
                      ## remove the edited column that is now scratchwork
                      up$Subcellular.location..CC.edit <- NULL
@@ -586,10 +684,15 @@ server <- function(input,output,session){
     )
     ##end of eventReactive({}) for Shiny
   })
+  output$helpme_text <-  renderUI({
+    if(!is.null(extracted.df())) {
+        HTML(paste("Your UniProtKB query was successfully extracted. Your original query and added \"extracted\" data columns are available to download using the \"Download\" button below.",  "", sep= "<br/>"))
+    }
+      })
   
   output$downloader <- renderUI({
     if(!is.null(extracted.df())) 
-      downloadButton('OutputFile', "Download ExtractR File")
+      downloadButton('OutputFile', "Download extracted query file")
   })
   output$OutputFile <- downloadHandler(
     filename=function() {
@@ -599,9 +702,14 @@ server <- function(input,output,session){
       write.csv(extracted.df(),file)
     }
   )
+  output$helpme_text2 <-  renderUI({
+    if(!is.null(extracted.df())) {
+      HTML(paste("This frequency table below is to browse a summary of each category of the UniProtKB query.", "", sep= "<br/>"))
+    }
+  })
   output$category_select <- renderUI({
     if(!is.null(extracted.df()))
-      selectizeInput("category","Category:",
+      selectizeInput("category","Frequency table category:",
                      choices=colnames(extracted.df()),
                      options=list(
                        placeholder="Type column name",
