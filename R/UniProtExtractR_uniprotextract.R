@@ -34,7 +34,8 @@ uniprotextract <- function(my.uniprot.df, map.up=NULL, write.local = FALSE) {
     up <- add_column(up, Involvement.in.disease.edit = ifelse(up$disease_count1 == up$disease_count2, NA, up$Involvement.in.disease ), .after = "Involvement.in.disease")
     # sum(!is.na(up$Involvement.in.disease))
     ## have removed 387 values where all disease listings are Notes. 
-    
+    ## sometimes, all values might be NA at this point. If had all "DISEASE: Note=". Only run the rest of the code below if that is not the case.
+    if(sum(is.na(up$Involvement.in.disease.edit))!=nrow(up)) {
     # sum(startsWith(up$Involvement.in.disease.edit, "DISEASE: Note="), na.rm=T)
     ## how many start with "DISEASE: Note="?
     ## while there are some entries that start with "DISEASE: Note=", remove "DISEASE: Note= ... DISEASE: " and replace with "DISEASE: " until all Disease entries do not start with "DISEASE: Note= ". Basically bringing the disease name to the front of the string and eliminating the Note= repeatedly until so. 
@@ -92,10 +93,12 @@ uniprotextract <- function(my.uniprot.df, map.up=NULL, write.local = FALSE) {
     ## case 3: believe it or not!
     up$Involvement.in.disease.edit <- gsub(" [[:digit:]][[:alpha:]][[:digit:]][[:alpha:]]$| [[:digit:]][[:alpha:]][[:alpha:]]$", "", up$Involvement.in.disease.edit)
     ## finally, remove the disease_count1 and 2 columns, have served their purpose
-    up$disease_count1 <- NULL
-    up$disease_count2 <- NULL
     ## also change any final disease_count == 0 values to NA since there was only a Note= originally in the disease category.
     up$Involvement.in.disease_count[up$Involvement.in.disease_count== 0] <- NA
+     }
+    up$disease_count1 <- NULL
+    up$disease_count2 <- NULL
+
     ## BAM!
     # View(table(up$Involvement.in.disease))
     summary.changes[1] <- "Involvement.in.disease"
@@ -249,7 +252,11 @@ uniprotextract <- function(my.uniprot.df, map.up=NULL, write.local = FALSE) {
     ## ~150 proteins have 2 motifs of 2369 total entries, 6%. ~50 proteins have 3, 25 have 4...negligible after 5 really, though looks like max is 20? wow
     transient.df <- data.frame(a = rep(0, nrow(up)))
     ## don't need a loop if just taking first 
+   ## Apparently, UniProt .TSV export files have quotes around Motifs and Domains. If you query the API directly, there are no quotes. This if statement should take care of that.
     transient.df$Motif.edit <- str_match(up$Motif, "note=\"(.*?)\"")[,2]
+    if(sum(is.na(transient.df$Motif.edit))== nrow(transient.df)) {
+       transient.df$Motif.edit <- str_match(up$Motif, "note=(.*?);")[,2]
+       }
     ## eliminate anything after a semicolon
     transient.df$Motif.edit <- gsub(";.*", "", transient.df$Motif.edit)
     ## str_trim eliminates spaces at start and ends of strings
@@ -294,7 +301,11 @@ uniprotextract <- function(my.uniprot.df, map.up=NULL, write.local = FALSE) {
     ## holy smokes, a protein has 285 annotated domains??? lol
     transient.df <- data.frame(a = rep(0, nrow(up)))
     ## don't need a loop if just taking first 
+    ## Apparently, UniProt .TSV export files have quotes around Motifs and Domains. If you query the API directly, there are no quotes. This if statement should take care of that.
     transient.df$Domain..FT.edit <- str_match(up$Domain..FT., "note=\"(.*?)\"")[,2]
+    if(sum(is.na(transient.df$Domain..FT.edit))== nrow(transient.df)) {
+       transient.df$Domain..FT.edit <- str_match(up$Motif, "note=(.*?);")[,2]
+       }
     ## floating integers strike again!!!!
     # View(table(transient.df$Domain..FT.edit))
     ## case 1. Floating integers. Srsly.
