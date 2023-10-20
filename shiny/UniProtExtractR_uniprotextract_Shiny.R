@@ -12,10 +12,22 @@ library(BiocManager)
 library(UniProt.ws)
 library(bslib)
 
+# markdown.instructions <- source("https://github.com/alex-bio/UniProtExtractR/blob/main/README.md")
 ####Start of Shiny App. ####
-ui <- shinyUI(fluidPage(
+ui <- shinyUI(navbarPage("UniProtExtractR",
   theme = bs_theme(bootswatch = "cerulean"),
-  titlePanel("UniProtExtractR: extract information from UniProtKB"),
+  # titlePanel("UniProtExtractR: extract information from UniProtKB"),
+  ## this is for making the withProgress() larger and centered
+  tags$head(tags$style(HTML(".shiny-notification {
+              height: 100px;
+              width: 500px;
+              position:fixed;
+              top: calc(50% - 50px);;
+              left: calc(50% - 400px);;
+            }
+           "
+  ))),
+  tabPanel("ExtractR",
   sidebarLayout(
     sidebarPanel(
       h3("Step 1: Query UniProtKB"),
@@ -53,6 +65,9 @@ ui <- shinyUI(fluidPage(
       uiOutput("category_table")
     )
   )
+),
+tabPanel("User Guide",
+         uiOutput("instructions", style="width: 75%; margin: auto;"))
 )
 )
 
@@ -724,7 +739,76 @@ server <- function(input,output,session){
       output$actual_table <- DT::renderDataTable(as.data.frame(table(extracted.df()[,input$category], useNA="always")) %>% setNames(c("Unique value", "Frequency count")), server = FALSE, selection = "single")
     DT::dataTableOutput("actual_table")
   })
-  
+  output$instructions <- renderUI({
+    HTML( ##user guide summary
+      "
+      <h1> UniProtExtractR User Guide Summary </h1> 
+      <h5> Shiny App for extracting desired information from syntactically structured character strings across 9 UniProtKB categories: DNA binding, Pathway, Transmembrane, Signal peptide, Protein families, Domain [FT], Motif, Involvement in disease, and Subcellular location [CC]. A full manual and example files may be found at the <a href='https://github.com/alex-bio/UniProtExtractR'>UniProtExtractR GitHub page.</a></h3>
+      <h3> Overview </h3>
+      <p>UniProtKB protein entries can be challenging to handle for data analysis, visualization, and categorization due to character string syntax. This app extracts desired information from syntactically complex UniProtKB entries for the 9 UniProtKB specific categories above. Further, a user can supply an optional mapping file for Subcellular location [CC], as many annotated locations are quite specific.</p>
+      <h3> Step 1: Query UniProtKB </h3>
+      <p>The only requisite for the app is a UniProtKB query (size limit is 5GB). UniProtKB can be directly queried, which is recommended. Else, a user can query UniProtKB on the <a href='https://uniprot.org'>UniProtKB website</a> and download a .TSV file (after searching, click 'Download' and select .TSV as file format). This should be a tab separated (.TSV or .TXT). For only the categories to be extracted by the R package or app, those column names must exactly match those exported from UniProtKB, but do not have to be in any particular order.<br>
+      When querying UniProtKB directly, a loading bar will appear until the query is finished loading into the app. Upon successful completion, a 'Run ExtractR' button will appear at the bottom of the left-hand panel.</p>
+      <h3> Step 2 (optional): Include organelle mapping file </h3>
+      <p> The mapping file is optional and should be tab separated if included (.TSV or .TXT). The mapping file is only for the category Subcellular location [CC]. It should contain only 3 columns: 'New', 'Exact', and 'StartsWith' (see example at the <a href='https://github.com/alex-bio/UniProtExtractR'>UniProtExtractR GitHub page</a>). For every Subcellular location [CC] per entry in the UniProtKB query file, any terms that match exactly to 'Exact' or that start with the phrases in 'StartsWith' will be swapped for the value in 'New' in a row-wise fashion. Each row represents paired 'Exact' and 'StartsWith' matches for a single replacement value 'New'. The 'Exact' and 'StartsWith' values may have many listed phrases, and 'Exact' takes priority. Importantly, the values within 'Exact' and 'StartsWith' columns must be separated by a single comma without a space.</p>
+      <h3> Step 3: Run the app </h3>
+      <p>If UniProtKB was successfully queried or a file was uploaded in Step 1, then a 'RunExtractR' button will appear at the bottom of the left-hand panel. It may take some time for the app to process the UniProtKB query, depending on size.</p>
+      <h3> Outputs </h3>
+      <p>If the app successfully ran, a message will appear stating success at the top of the right-hand side. Additionally, the app will return two things: (1) a .CSV file containing the originally uploaded UniProtKB file with additional modified or 'extracted' columns, and (2) an in-app browsable frequency table of the extracted UniProtKB query. The .CSV file containing the uploaded query and 'extracted' columns is available to download by using the download button at the top of the main panel. The frequncy table that appears on the screen summarizes the counts of all unique values within each column of the UniProtKB query and 'extracted' columns. This may be useful for summarizing the UniProtKB query: as one example, the number of entries in the query with 1, 2, 3, ..., etc. transmembrane domains. The frequency table also shows a blank value for each category to demonstrate category coverage, i.e. the number of empty values within that category. If the following categories are present (and not empty), then new columns (bulleted) will appear immediately adjacent:
+      <ol>
+        <li>DNA Binding</li>
+          <ul>
+              <li>DNA.binding_binary</li>
+              <li>DNA.binding_count</li>
+          </ul>
+        <li>Pathway</li>
+          <ul>
+              <li>Pathway.edit</li>
+          </ul>
+        <li>Transmembrane</li>
+        <ul>
+              <li>Transmembrane_binary</li>
+              <li>Transmembrane_count</li>
+          </ul>
+        <li>Signal peptide</li>
+        <ul>
+              <li>Signal.peptide_binary</li>
+          </ul>
+        <li>Protein families</li>
+        <ul>
+              <li>Protein.families.edit</li>
+          </ul>
+        <li>Domain [FT]</li>
+        <ul>
+              <li>Domain..FT.edit</li>
+          </ul>
+        <li>Motif</li>
+        <ul>
+              <li>Motif.edit</li>
+          </ul>
+        <li>Involvement in disease</li>
+        <ul>
+              <li>Involvement.in.disease.edit</li>
+              <li>Involvement.in.disease_count</li>
+          </ul>
+        <li>Subcellular location [CC]</li>
+        <ul>
+              <li>Subcellular.location..CC.edit</li>
+              <li>Subcellular.location..CC.map.edit (if mapping file present)</li>
+          </ul>
+      
+      
+      </ol>
+      
+      <p> For troubleshooting, further instructions, or example files, please refer to the full manual at the <a href='https://github.com/alex-bio/UniProtExtractR'>UniProtExtractR GitHub page</a>.
+      <br>
+      <br>
+      <br>
+      <br>
+      <p style='color:gray;'> Page last updated 2023-10-18.</p>
+      "
+    )
+  })
 }
 
 shinyApp(ui,server)
