@@ -1,4 +1,4 @@
-## UniProtExtractR. AP 23-10-02.
+## UniProtExtractR. AP 23-10-18.
 #### Install necessary packages ####
 list.of.packages <- c("stringr", "stringi", "tibble", "shiny", "DT", "BiocManager", "UniProt.ws", "bslib")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
