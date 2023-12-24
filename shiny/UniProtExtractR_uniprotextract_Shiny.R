@@ -1,4 +1,4 @@
-## UniProtExtractR. AP 23-10-18.
+## UniProtExtractR. AP 23-10-02.
 #### Install necessary packages ####
 list.of.packages <- c("stringr", "stringi", "tibble", "shiny", "DT", "BiocManager", "UniProt.ws", "bslib")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
@@ -406,7 +406,7 @@ server <- function(input,output,session){
                      ## Apparently, UniProt .TSV export files have quotes around Motifs and Domains. If you query the API directly, there are no quotes. This if statement should take care of that.
                      transient.df$Motif.edit <- str_match(up$Motif, "note=\"(.*?)\"")[,2]
                      if(sum(is.na(transient.df$Motif.edit))== nrow(transient.df)) {
-                       transient.df$Motif.edit <- str_match(up$Motif, "note=(.*?);")[,2]
+                       transient.df$Motif.edit <- str_match(up$Motif, "note=(.*?)$")[,2]
                      }
                      ## eliminate anything after a semicolon
                      transient.df$Motif.edit <- gsub(";.*", "", transient.df$Motif.edit)
