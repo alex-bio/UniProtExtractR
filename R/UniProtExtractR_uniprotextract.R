@@ -304,7 +304,7 @@ uniprotextract <- function(my.uniprot.df, map.up=NULL, write.local = FALSE) {
     ## Apparently, UniProt .TSV export files have quotes around Motifs and Domains. If you query the API directly, there are no quotes. This if statement should take care of that.
     transient.df$Domain..FT.edit <- str_match(up$Domain..FT., "note=\"(.*?)\"")[,2]
     if(sum(is.na(transient.df$Domain..FT.edit))== nrow(transient.df)) {
-       transient.df$Domain..FT.edit <- str_match(up$Motif, "note=(.*?);")[,2]
+       transient.df$Domain..FT.edit <- str_match(up$Motif, "note=(.*?)$")[,2]
        }
     ## floating integers strike again!!!!
     # View(table(transient.df$Domain..FT.edit))
